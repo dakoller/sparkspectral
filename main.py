@@ -22,7 +22,7 @@ from urllib import urlopen,quote
 from urllib2 import Request
 from xml.dom.minidom import parseString
 import simplejson as json
-from models import SparkSpectralUser
+from models import SparkSpectralUser,SparkSpectralTopic
 
 import re
 CALAIS_API_KEY="pc5v39x8sq3mh4mv9zm2ppre"
@@ -74,26 +74,32 @@ class PlusSparklerHandler(webapp.RequestHandler):
 		#if user_obj["is_new"]:
 		# create mode for sparks
 		self.response.out.write("You were here already.")
-		#pass
-		#else:
-			# update mode for sparks
-		#pass
 		
+		for spark in json_data["sparks"]:
+		    topic = self.create_or_get_topic(user_id,spark)
+		    self.response.out.write("<p>" + spark + "</p>")
 		
 		
 		self.response.out.write('Hello world ' + user_id)
 	
 	def create_or_get_user(self,user_id):
-		ssu_key= db.Key.from_path('SparkSpectralUser', user_id)
-		ssu = db.get(ssu_key)
-		if ssu == None:
-		    ssu= SparkSpectralUser(user_name= user_id)
-		    ssu.put()
-		    user_obj= ssu
-		else:
-		    user_obj= ssu
-		    
-		return user_obj
+	    ssu_key= db.Key.from_path('SparkSpectralUser', user_id)
+	    ssu = db.get(ssu_key)
+	    if ssu == None:
+		ssu= SparkSpectralUser(user_name= user_id)
+		ssu.put()
+		user_obj= ssu
+	    else:
+		user_obj= ssu
+	    return user_obj
+	    
+	def create_or_get_topic(self, user_id, topic_name):
+	    topic_key = db.Key.from_path('SparkSpectralTopic', topic_name)
+	    topic = db.get(topic_key)
+	    if topic == None:
+		topic = SparkSpectralTopic(topic=topic_name)
+		topic.put()
+	    return topic
         
 def main():
     application = webapp.WSGIApplication([('/', MainHandler),('/plussparkler',PlusSparklerHandler)],
