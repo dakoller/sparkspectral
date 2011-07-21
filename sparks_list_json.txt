@@ -1,4 +1,4 @@
 {
 	"user_id":"dakoller2",
-	"sparks": ["rogier van der weyden", "python", "hieronymus bosch", "Android", "django python", "aviv geffen", "a friend in london", "york minster"]
+	"sparks": ["rogier van der weyden", "python", "hieronymus bosch", "Android", "django python", "aviv geffen", "harel skaat", "a friend in london", "york minster"]
 }

@@ -20,9 +20,11 @@ from google.appengine.ext import db
 from calais import Calais
 from urllib import urlopen,quote
 from urllib2 import Request
+from google.appengine.api import urlfetch
 from xml.dom.minidom import parseString
 import simplejson as json
-from models import SparkSpectralUser,SparkSpectralTopic
+from models import SparkSpectralUser,SparkSpectralTopic, UserTopicRelation
+import logging
 
 import re
 CALAIS_API_KEY="pc5v39x8sq3mh4mv9zm2ppre"
@@ -68,7 +70,11 @@ class PlusSparklerHandler(webapp.RequestHandler):
 		json_data= json.load(file)
 		file.close()
 		# extract user_id 
-		user_id= json_data["user_id"]
+		#user_id= json_data["user_id"]
+		user_id= self.request.get("user_id")
+		if user_id == '':
+		    user_id= json_data["user_id"]
+		    
 		# if user_id exists
 		user_obj= self.create_or_get_user(user_id)
 		#if user_obj["is_new"]:
@@ -76,33 +82,73 @@ class PlusSparklerHandler(webapp.RequestHandler):
 		self.response.out.write("You were here already.")
 		
 		for spark in json_data["sparks"]:
-		    topic = self.create_or_get_topic(user_id,spark)
+		    topic = self.create_or_get_topic(user_obj,spark)
 		    self.response.out.write("<p>" + spark + "</p>")
 		
 		
 		self.response.out.write('Hello world ' + user_id)
 	
 	def create_or_get_user(self,user_id):
-	    ssu_key= db.Key.from_path('SparkSpectralUser', user_id)
-	    ssu = db.get(ssu_key)
-	    if ssu == None:
+	    q = SparkSpectralUser.all()
+	    q.filter("user_name =", user_id)
+	    if (q.count() >0):
+		ssu= q.fetch(1)
+		user_obj= ssu[0]
+	    else:
 		ssu= SparkSpectralUser(user_name= user_id)
 		ssu.put()
 		user_obj= ssu
-	    else:
-		user_obj= ssu
 	    return user_obj
 	    
-	def create_or_get_topic(self, user_id, topic_name):
-	    topic_key = db.Key.from_path('SparkSpectralTopic', topic_name)
-	    topic = db.get(topic_key)
-	    if topic == None:
-		topic = SparkSpectralTopic(topic=topic_name)
-		topic.put()
-	    return topic
+	def create_or_get_topic(self, user_obj, topic_name):
+	    q = SparkSpectralTopic.all()
+	    q.filter("topic =", topic_name)
+	    if (q.count() >0):
+		topic= q.fetch(1)
+		topic_obj= topic[0]
+	    else:
+		topic_obj= SparkSpectralTopic(topic= topic_name)
+		topic_obj.put()
+		
+	    q2= UserTopicRelation.all()
+	    q2.filter("topic_ref =", topic_obj)
+	    q2.filter("user_ref =", user_obj)
+	    if (q2.count() >0 ):
+                logging.info("UserTopicRelation found " + user_obj + " / " + topic_obj)
+                pass
+            else:
+		rel= UserTopicRelation(topic_ref= topic_obj, user_ref= user_obj)
+		rel.put()
+                logging.info("UserTopicRelation created" + rel.user_ref + " / " + rel.topic_ref )
+	    
+	    return topic_obj
+        
+class TopicEnricherHandler(webapp.RequestHandler):
+    
+    def get(self):
+        topics_query = SparkSpectralTopic.all()
+
+        if (topics_query.count() >0 ):
+            self.response.out.write("<ul>")
+            topics= topics_query.fetch(100)
+            for topic in topics:
+                self.response.out.write("<li><b>" + topic.topic + "</b> ")
+                if topic.topic_uri != None:
+                    self.response.out.write("(topic uri: " + topic.topic_uri + " )")
+                else:
+                    r = "http://spotlight.dbpedia.org/rest/annotate?text=" + quote(topic.topic)
+                    #r.add_header("Accept","application/json")
+                    u= urlfetch.fetch(url= r, headers={'Accept': 'application/json'})
+                    if u.status_code == 200:
+                        json_data= json.loads(u.content)
+                        if json_data["Resources"]:
+                            self.response.out.write("<i>Data: "+json_data["Resources"][0]["@URI"] +"</i>") 
+                
+                self.response.out.write("</li>")
+            self.response.out.write("</ul>")
         
 def main():
-    application = webapp.WSGIApplication([('/', MainHandler),('/plussparkler',PlusSparklerHandler)],
+    application = webapp.WSGIApplication([('/', MainHandler),('/plussparkler',PlusSparklerHandler), ('/enrichtopics',TopicEnricherHandler)],
                                          debug=True)
     util.run_wsgi_app(application)
 
