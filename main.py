@@ -25,6 +25,7 @@ from xml.dom.minidom import parseString
 import simplejson as json
 from models import SparkSpectralUser,SparkSpectralTopic, UserTopicRelation
 import logging
+import urllib2
 
 import re
 CALAIS_API_KEY="pc5v39x8sq3mh4mv9zm2ppre"
@@ -35,11 +36,8 @@ class MainHandler(webapp.RequestHandler):
     calais = Calais('pc5v39x8sq3mh4mv9zm2ppre' , submitter="ask-a-sap-question")
 
     def get(self):
-        file =open(FILENAME)
-        for line in file:
-            self.writeout(line)
-        file.close()
-        self.response.out.write('Hello world!')
+        json_s= self.request.get("json")
+        self.response.out.write("<h2>Input data</h2><p>"+ urllib2.unquote(urllib2.quote(json_s.encode("utf8"))) + "</p><hr/>")
 
     def writeout(self, topic):
         self.response.out.write("<h3>" + topic + "</h3><ul>")
@@ -64,14 +62,16 @@ class MainHandler(webapp.RequestHandler):
 class PlusSparklerHandler(webapp.RequestHandler):
 
 	def get(self):
-		file= open(FILENAME_JSON)
-		
+		#file= open(FILENAME_JSON)
+		json_s= self.request.get("json")
+                json_s2= urllib2.unquote(urllib2.quote(json_s.encode("utf8")))
 		# analyze json
-		json_data= json.load(file)
-		file.close()
-		# extract user_id 
+		json_data= json.loads(json_s2)
+                logging.info("user id: " + json_data["user_id"])
+                
 		#user_id= json_data["user_id"]
-		user_id= self.request.get("user_id")
+		user_id=''
+                #user_id= self.request.get("user_id")
 		if user_id == '':
 		    user_id= json_data["user_id"]
 		    
@@ -114,12 +114,11 @@ class PlusSparklerHandler(webapp.RequestHandler):
 	    q2.filter("topic_ref =", topic_obj)
 	    q2.filter("user_ref =", user_obj)
 	    if (q2.count() >0 ):
-                logging.info("UserTopicRelation found " + user_obj + " / " + topic_obj)
-                pass
+                logging.info("UserTopicRelation found " + user_obj.user_name + " / " + topic_obj.topic)
             else:
 		rel= UserTopicRelation(topic_ref= topic_obj, user_ref= user_obj)
 		rel.put()
-                logging.info("UserTopicRelation created" + rel.user_ref + " / " + rel.topic_ref )
+                logging.info("UserTopicRelation created" + topic_obj.topic + " / " + user_obj.user_name )
 	    
 	    return topic_obj
         
